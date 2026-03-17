@@ -17,6 +17,7 @@ use std::fmt;
 use itertools::Itertools;
 use ruff_db::parsed::parsed_module;
 use ruff_python_ast::name::Name;
+use ruff_text_size::{Ranged, TextRange};
 use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::{SmallVec, smallvec, smallvec_inline};
 
@@ -5251,7 +5252,23 @@ impl<'db> BindingError<'db> {
                 parameters,
                 paramspec,
             } => {
-                if let Some(builder) = context.report_lint(&MISSING_ARGUMENT, node) {
+                // If we're reporting diagnostics for bad arguments in a class definition,
+                // restrict the range to just the range of the class name + its arguments.
+                let range = node
+                    .as_stmt_class_def()
+                    .map(|class| {
+                        TextRange::new(
+                            class.start(),
+                            class
+                                .arguments
+                                .as_deref()
+                                .map(Ranged::end)
+                                .unwrap_or(class.name.end()),
+                        )
+                    })
+                    .unwrap_or(node.range());
+
+                if let Some(builder) = context.report_lint(&MISSING_ARGUMENT, range) {
                     let s = if parameters.0.len() == 1 { "" } else { "s" };
                     let mut diag = builder.into_diagnostic(format_args!(
                         "No argument{s} provided for required parameter{s} {parameters}{}",
@@ -5522,10 +5539,15 @@ impl<'db> BindingError<'db> {
     fn get_node(node: ast::AnyNodeRef<'_>, argument_index: Option<usize>) -> ast::AnyNodeRef<'_> {
         // If we have a Call node and an argument index, report the diagnostic on the correct
         // argument node; otherwise, report it on the entire provided node.
-        match Self::get_argument_node(node, argument_index) {
-            Some(ast::ArgOrKeyword::Arg(expr)) => expr.into(),
-            Some(ast::ArgOrKeyword::Keyword(expr)) => expr.into(),
-            None => node,
+        match (Self::get_argument_node(node, argument_index), node) {
+            (Some(ast::ArgOrKeyword::Arg(expr)), _) => expr.into(),
+            (Some(ast::ArgOrKeyword::Keyword(expr)), _) => expr.into(),
+            (None, ast::AnyNodeRef::StmtClassDef(class_def)) => class_def
+                .arguments
+                .as_deref()
+                .map(ast::AnyNodeRef::Arguments)
+                .unwrap_or(node),
+            (None, _) => node,
         }
     }
 
@@ -5541,6 +5563,22 @@ impl<'db> BindingError<'db> {
                     .nth(argument_index)
                     .expect("argument index should not be out of range"),
             ),
+            // If we've been passed a `ClassDef` node, it indicates that we're reporting an error
+            // relating to the class's keyword arguments. Keyword arguments are passed to `__init_subclass__`,
+            // or `__new__`/`__prepare__` on the metaclass -- but positional arguments are not, and neither
+            // is the special keyword argument `metaclass`. These need to be excluded from the
+            // argument index when looking up the relevant keyword-argument node.
+            (ast::AnyNodeRef::StmtClassDef(class_def), Some(argument_index)) => {
+                class_def.arguments.as_deref().and_then(|args| {
+                    args.arguments_source_order()
+                        .filter_map(ArgOrKeyword::as_keyword)
+                        .filter(|keyword| {
+                            keyword.arg.as_deref().is_none_or(|arg| arg != "metaclass")
+                        })
+                        .nth(argument_index)
+                        .map(ast::ArgOrKeyword::Keyword)
+                })
+            }
             _ => None,
         }
     }

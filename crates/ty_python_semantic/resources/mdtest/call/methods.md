@@ -659,6 +659,133 @@ class Base:
 class Valid(Base, arg=5, metaclass=object): ...
 ```
 
+### Metaclass `__new__` keyword arguments
+
+<!-- snapshot-diagnostics -->
+
+When a custom metaclass overrides `__new__` with keyword-only parameters, class keyword
+arguments are validated against the metaclass's `__new__` signature instead of
+`__init_subclass__`.
+
+```py
+from typing import Any
+
+class Meta(type):
+    def __new__(mcs, name: str, bases: tuple[type, ...], namespace: dict[str, Any], *, required_arg: int):
+        return super().__new__(mcs, name, bases, namespace)
+
+class Valid(metaclass=Meta, required_arg=5): ...
+class MissingArg(metaclass=Meta): ...  # error: [missing-argument]
+class InvalidType(metaclass=Meta, required_arg="foo"): ...  # error: [invalid-argument-type]
+```
+
+### Metaclass `__new__` takes priority over `__init_subclass__`
+
+<!-- snapshot-diagnostics -->
+
+When a metaclass defines `__new__`, its signature takes priority over `__init_subclass__`
+on a base class.
+
+```py
+from typing import Any
+
+class Meta(type):
+    def __new__(mcs, name: str, bases: tuple[type, ...], namespace: dict[str, Any], *, meta_arg: int):
+        return super().__new__(mcs, name, bases, namespace)
+
+class Base(metaclass=Meta, meta_arg=1):
+    def __init_subclass__(cls, sub_arg: str): ...
+
+# `meta_arg` is checked against `Meta.__new__`, not `Base.__init_subclass__`
+class Valid(Base, meta_arg=5): ...
+class MissingArg(Base): ...  # error: [missing-argument]
+class InvalidType(Base, meta_arg="foo"): ...  # error: [invalid-argument-type]
+```
+
+### Metaclass `__prepare__` keyword arguments
+
+<!-- snapshot-diagnostics -->
+
+When a metaclass defines `__prepare__`, class keyword arguments are also validated against
+its signature.
+
+```py
+from typing import Any
+
+class Meta(type):
+    @classmethod
+    def __prepare__(mcs, name: str, bases: tuple[type, ...], *, prep_arg: int = 0, **kwargs: Any) -> dict[str, Any]:
+        return {}
+
+    def __new__(mcs, name: str, bases: tuple[type, ...], namespace: dict[str, Any], **kwargs: Any):
+        return super().__new__(mcs, name, bases, namespace)
+
+class Valid(metaclass=Meta, prep_arg=5): ...
+class InvalidType(metaclass=Meta, prep_arg="foo"): ...  # error: [invalid-argument-type]
+```
+
+### Metaclass `__new__` with incompatible namespace type from `__prepare__`
+
+<!-- snapshot-diagnostics -->
+
+When `__new__` expects a custom `dict` subclass as the namespace parameter, and `__prepare__`
+returns a plain `dict[str, Any]`, this should produce a type error on the namespace argument.
+
+```py
+from typing import Any
+
+class MyNamespace(dict[str, Any]):
+    pass
+
+class Meta(type):
+    @classmethod
+    def __prepare__(mcs, name: str, bases: tuple[type, ...], **kwargs: Any) -> dict[str, Any]:
+        return {}
+
+    def __new__(mcs, name: str, bases: tuple[type, ...], namespace: MyNamespace, **kwargs: Any):
+        return super().__new__(mcs, name, bases, namespace)
+
+class Foo(metaclass=Meta): ...  # error: [invalid-argument-type]
+```
+
+### Metaclass `__new__` with compatible namespace type from `__prepare__`
+
+When `__prepare__` returns the expected custom namespace type, no error should be emitted.
+
+```py
+from typing import Any
+
+class MyNamespace(dict[str, Any]):
+    pass
+
+class Meta(type):
+    @classmethod
+    def __prepare__(mcs, name: str, bases: tuple[type, ...], **kwargs: Any) -> MyNamespace:
+        return MyNamespace()
+
+    def __new__(mcs, name: str, bases: tuple[type, ...], namespace: MyNamespace, **kwargs: Any):
+        return super().__new__(mcs, name, bases, namespace)
+
+class Foo(metaclass=Meta): ...
+```
+
+### No metaclass `__new__` override falls back to `__init_subclass__`
+
+When a metaclass does not override `type.__new__`, keyword argument validation falls back to
+`__init_subclass__` on the base classes.
+
+```py
+class Meta(type):
+    pass
+
+class Base(metaclass=Meta):
+    def __init_subclass__(cls, arg: int): ...
+
+class Valid(Base, arg=5): ...
+class MissingArg(Base): ...  # error: [missing-argument]
+class InvalidType(Base, arg="foo"): ...  # error: [invalid-argument-type]
+```
+
 ## `@staticmethod`
 
 ### Basic

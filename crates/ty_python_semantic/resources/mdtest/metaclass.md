@@ -188,6 +188,7 @@ When a class has an explicit `metaclass` that is not a class, but is a callable 
 def f(*args, **kwargs) -> int:
     return 1
 
+# error: [no-matching-overload] "No overload of function `__new__` matches arguments"
 class A(metaclass=f): ...
 
 # TODO: Should be `int`
@@ -212,7 +213,7 @@ def _(flag: bool):
 
 class SignatureMismatch: ...
 
-# TODO: Emit a diagnostic
+# error: [invalid-argument-type] "Argument to function `__init_subclass__` is incorrect: Expected `type`, found `<class 'D'>`"
 class D(metaclass=SignatureMismatch): ...
 
 # TODO: Should be `Unknown`

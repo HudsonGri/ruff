@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use itertools::Itertools;
 use ruff_db::{
     diagnostic::{Annotation, Span, SubDiagnostic, SubDiagnosticSeverity},
@@ -5,7 +7,7 @@ use ruff_db::{
     source::source_text,
 };
 use ruff_diagnostics::{Edit, Fix};
-use ruff_python_ast as ast;
+use ruff_python_ast::{self as ast, name::Name};
 use ruff_text_size::{Ranged, TextRange, TextSize};
 use rustc_hash::FxHashMap;
 
@@ -17,9 +19,9 @@ use crate::{
         SemanticIndex, attribute_assignments, definition::DefinitionKind, scope::ScopeId,
     },
     types::{
-        CallArguments, ClassBase, ClassLiteral, ClassType, GenericAlias, KnownInstanceType,
-        MemberLookupPolicy, MetaclassCandidate, Parameters, Signature, SpecialFormType,
-        StaticClassLiteral, Type,
+        CallArguments, ClassBase, ClassLiteral, ClassType, GenericAlias, KnownClass,
+        KnownInstanceType, MemberLookupPolicy, MetaclassCandidate, Parameters, Signature,
+        SpecialFormType, StaticClassLiteral, Type,
         call::{Argument, CallError, CallErrorKind},
         class::{AbstractMethod, CodeGeneratorKind, FieldKind, MetaclassErrorKind},
         context::InferContext,
@@ -699,7 +701,7 @@ pub(crate) fn check_static_class_definitions<'db>(
                 }
             }
         } else {
-            let call_args: CallArguments = args
+            let keyword_call_args: CallArguments = args
                 .keywords
                 .iter()
                 .filter_map(|keyword| match keyword.arg.as_ref() {
@@ -716,20 +718,68 @@ pub(crate) fn check_static_class_definitions<'db>(
                 })
                 .collect();
 
-            let init_subclass_type = class
-                .class_member_from_mro(
+            // If the class's metaclass overrides `type.__new__`, we check against that signature.
+            // If neither of the above two apply, we check `__init_subclass__` on the class's bases.
+            let metaclass = class.metaclass(db);
+            let call_and_args = metaclass
+                .member_lookup_with_policy(
                     db,
-                    "__init_subclass__",
-                    MemberLookupPolicy::MRO_NO_OBJECT_FALLBACK,
-                    // skip(1) to skip the current class and only consider base classes.
-                    class.iter_mro(db, None).skip(1),
+                    Name::new_static("__new__"),
+                    MemberLookupPolicy::META_CLASS_NO_TYPE_FALLBACK
+                        | MemberLookupPolicy::MRO_NO_OBJECT_FALLBACK,
                 )
-                .ignore_possibly_undefined();
+                .ignore_possibly_undefined()
+                .map(|call| {
+                    let str = KnownClass::Str.to_instance(db);
+                    let bases_type = Type::homogeneous_tuple(db, KnownClass::Type.to_instance(db));
 
-            if let Some(init_subclass) = init_subclass_type {
-                let call_args = call_args.with_self(Some(Type::from(class)));
+                    let namespace_type = metaclass
+                        .member_lookup_with_policy(
+                            db,
+                            Name::new_static("__prepare__"),
+                            MemberLookupPolicy::META_CLASS_NO_TYPE_FALLBACK,
+                        )
+                        .ignore_possibly_undefined()
+                        .map(|prepare| {
+                            let prepare_args =
+                                keyword_call_args.with_prepended_parameters(&[str, bases_type]);
+
+                            prepare
+                                .try_call(db, &prepare_args)
+                                .unwrap_or_else(|CallError(_, bindings)| {
+                                    bindings.report_diagnostics(context, class_node.into());
+                                    *bindings
+                                })
+                                .return_type(db)
+                        })
+                        .unwrap_or_else(|| {
+                            KnownClass::Dict.to_specialized_instance(db, &[str, Type::any()])
+                        });
+
+                    let metaclass_new_prepended_parameters =
+                        &[metaclass, str, bases_type, namespace_type];
+
+                    let metaclass_new_args = keyword_call_args
+                        .with_prepended_parameters(metaclass_new_prepended_parameters);
+
+                    (call, Cow::Owned(metaclass_new_args))
+                })
+                .or_else(|| {
+                    class
+                        .class_member_from_mro(
+                            db,
+                            "__init_subclass__",
+                            MemberLookupPolicy::default(),
+                            // skip(1) to skip the current class and only consider base classes.
+                            class.iter_mro(db, None).skip(1),
+                        )
+                        .ignore_possibly_undefined()
+                        .map(|call| (call, keyword_call_args.with_self(Some(Type::from(class)))))
+                });
+
+            if let Some((call, args)) = call_and_args {
                 if let Err(CallError(CallErrorKind::BindingError, bindings)) =
-                    init_subclass.try_call(db, &call_args)
+                    call.try_call(db, &args)
                 {
                     bindings.report_diagnostics(context, class_node.into());
                 }

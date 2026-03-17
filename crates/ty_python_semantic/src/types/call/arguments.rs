@@ -155,6 +155,19 @@ impl<'a, 'db> CallArguments<'a, 'db> {
         }
     }
 
+    pub(crate) fn with_prepended_parameters(&self, parameters: &[Type<'db>]) -> Self {
+        let arguments = std::iter::repeat_n(Argument::Synthetic, parameters.len())
+            .chain(self.arguments.iter().copied())
+            .collect();
+        let types = parameters
+            .iter()
+            .copied()
+            .map(Some)
+            .chain(self.types.iter().copied())
+            .collect();
+        Self { arguments, types }
+    }
+
     pub(crate) fn iter(&self) -> impl Iterator<Item = (Argument<'a>, Option<Type<'db>>)> + '_ {
         (self.arguments.iter().copied()).zip(self.types.iter().copied())
     }
