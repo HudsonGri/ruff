@@ -324,6 +324,7 @@ impl<'db> Type<'db> {
             constraints,
             inferable,
             relation: TypeRelation::SubtypingAssuming,
+            error_context: TypeRelationErrorContext::new(),
             given: assuming,
             relation_visitor: &HasRelationToVisitor::default(constraints),
             disjointness_visitor: &IsDisjointVisitor::default(constraints),
@@ -422,6 +423,7 @@ impl<'db> Type<'db> {
             constraints,
             inferable,
             relation,
+            error_context: TypeRelationErrorContext::new(),
             given: ConstraintSet::from_bool(constraints, false),
             relation_visitor: &HasRelationToVisitor::default(constraints),
             disjointness_visitor: &IsDisjointVisitor::default(constraints),
@@ -523,10 +525,22 @@ impl<'db, 'c> IsDisjointVisitor<'db, 'c> {
 }
 
 #[derive(Clone)]
+struct TypeRelationErrorContext {
+    stack: Vec<String>,
+}
+
+impl TypeRelationErrorContext {
+    fn new() -> Self {
+        Self { stack: Vec::new() }
+    }
+}
+
+#[derive(Clone)]
 pub(super) struct TypeRelationChecker<'a, 'c, 'db> {
     pub(super) constraints: &'c ConstraintSetBuilder<'db>,
     pub(super) inferable: InferableTypeVars<'db>,
     pub(super) relation: TypeRelation,
+    pub(super) error_context: TypeRelationErrorContext,
     given: ConstraintSet<'db, 'c>,
 
     // N.B. these fields are private to reduce the risk of
@@ -550,6 +564,7 @@ impl<'a, 'c, 'db> TypeRelationChecker<'a, 'c, 'db> {
             constraints,
             inferable,
             relation: TypeRelation::Subtyping,
+            error_context: TypeRelationErrorContext::new(),
             given: ConstraintSet::from_bool(constraints, false),
             relation_visitor,
             disjointness_visitor,
@@ -565,6 +580,7 @@ impl<'a, 'c, 'db> TypeRelationChecker<'a, 'c, 'db> {
             constraints,
             inferable: InferableTypeVars::None,
             relation: TypeRelation::ConstraintSetAssignability,
+            error_context: TypeRelationErrorContext::new(),
             given: ConstraintSet::from_bool(constraints, false),
             relation_visitor,
             disjointness_visitor,
@@ -1571,6 +1587,7 @@ impl<'c, 'db> EquivalenceChecker<'_, 'c, 'db> {
         TypeRelationChecker {
             relation: TypeRelation::Redundancy { pure: true },
             constraints: self.constraints,
+            error_context: TypeRelationErrorContext::new(),
             given: self.given,
             inferable: InferableTypeVars::None,
             relation_visitor: self.relation_visitor,
@@ -1640,6 +1657,7 @@ impl<'a, 'c, 'db> DisjointnessChecker<'a, 'c, 'db> {
             relation,
             constraints: self.constraints,
             inferable: self.inferable,
+            error_context: TypeRelationErrorContext::new(),
             given: self.given,
             relation_visitor: self.relation_visitor,
             disjointness_visitor: self.disjointness_visitor,
