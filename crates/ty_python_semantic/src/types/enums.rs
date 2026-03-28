@@ -349,7 +349,7 @@ pub(crate) fn enum_metadata<'db>(
                 PlaceAndQualifiers {
                     place:
                         Place::Defined(DefinedPlace {
-                            ty: Type::Dynamic(DynamicType::Unknown),
+                            ty: Type::Dynamic(DynamicType::Unknown(_)),
                             ..
                         }),
                     qualifiers,

@@ -378,7 +378,7 @@ impl<'db> TypeInferenceBuilder<'db, '_> {
                     if !inner_types.iter().any(|ty| {
                         matches!(
                             ty,
-                            Type::Dynamic(DynamicType::Todo(_) | DynamicType::Unknown)
+                            Type::Dynamic(DynamicType::Todo(_) | DynamicType::Unknown(_))
                         )
                     }) {
                         let hinted_type = if list.len() == 1 {
@@ -413,7 +413,7 @@ impl<'db> TypeInferenceBuilder<'db, '_> {
                         if !inner_types.iter().any(|ty| {
                             matches!(
                                 ty,
-                                Type::Dynamic(DynamicType::Todo(_) | DynamicType::Unknown)
+                                Type::Dynamic(DynamicType::Todo(_) | DynamicType::Unknown(_))
                             )
                         }) {
                             let hinted_type = Type::heterogeneous_tuple(self.db(), inner_types);
@@ -1292,7 +1292,7 @@ impl<'db> TypeInferenceBuilder<'db, '_> {
                     );
                     let generic_context =
                         GenericContext::from_typevar_instances(self.db(), variables);
-                    Type::Dynamic(DynamicType::UnknownGeneric(generic_context))
+                    Type::Dynamic(DynamicType::unknown_generic(generic_context))
                 }
                 KnownInstanceType::LiteralStringAlias(_) => {
                     self.infer_type_expression(slice);
@@ -1356,7 +1356,7 @@ impl<'db> TypeInferenceBuilder<'db, '_> {
                     Type::unknown()
                 }
             },
-            Type::Dynamic(DynamicType::UnknownGeneric(_)) => {
+            Type::Dynamic(DynamicType::UnknownGeneric(..)) => {
                 self.infer_explicit_type_alias_specialization(subscript, value_ty, true)
             }
             Type::Dynamic(_) => {

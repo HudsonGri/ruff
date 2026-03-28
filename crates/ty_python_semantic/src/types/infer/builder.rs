@@ -3207,7 +3207,7 @@ impl<'db, 'ast> TypeInferenceBuilder<'db, 'ast> {
             }
             // `Unknown` is likely to be the result of an unresolved import or a typo, which will
             // already get a diagnostic, so don't pile on an extra diagnostic here.
-            Type::Dynamic(DynamicType::Unknown) => return,
+            Type::Dynamic(DynamicType::Unknown(_)) => return,
             _ => {}
         }
         if let Some(builder) = self
@@ -4308,7 +4308,7 @@ impl<'db, 'ast> TypeInferenceBuilder<'db, 'ast> {
                     && !matches!(name_expr.id.as_str(), "_ignore_" | "_value_" | "_name_")
                     // Not bare Final (bare Final is allowed on enum members)
                     && !(declared.qualifiers.contains(TypeQualifiers::FINAL)
-                        && matches!(declared.inner_type(), Type::Dynamic(DynamicType::Unknown)))
+                        && declared.inner_type().is_unknown())
                     // Value type would be an enum member at runtime (exclude callables,
                     // which are never members)
                     && !inferred_ty.is_subtype_of(
@@ -6920,7 +6920,7 @@ impl<'db, 'ast> TypeInferenceBuilder<'db, 'ast> {
         // return type as type context.
         let return_tcx = if let Some(signature) = callable_tcx {
             match signature.return_ty {
-                Type::Dynamic(DynamicType::Unknown) => TypeContext::new(None),
+                Type::Dynamic(DynamicType::Unknown(_)) => TypeContext::new(None),
                 _ => TypeContext::new(Some(signature.return_ty)),
             }
         } else {

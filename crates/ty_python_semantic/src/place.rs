@@ -895,7 +895,7 @@ pub(crate) fn place_by_id<'db>(
         PlaceAndQualifiers {
             place:
                 Place::Defined(DefinedPlace {
-                    ty: Type::Dynamic(DynamicType::Unknown),
+                    ty: Type::Dynamic(DynamicType::Unknown(_)),
                     origin,
                     definedness,
                     ..

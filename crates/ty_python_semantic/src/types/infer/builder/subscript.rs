@@ -169,7 +169,7 @@ impl<'db, 'ast> TypeInferenceBuilder<'db, 'ast> {
                     &mut variables,
                 );
                 let generic_context = GenericContext::from_typevar_instances(db, variables);
-                return Type::Dynamic(DynamicType::UnknownGeneric(generic_context));
+                return Type::Dynamic(DynamicType::unknown_generic(generic_context));
             }
             Type::KnownInstance(KnownInstanceType::TypeAliasType(type_alias)) => {
                 if let Some(generic_context) = type_alias.generic_context(db) {
@@ -360,7 +360,7 @@ impl<'db, 'ast> TypeInferenceBuilder<'db, 'ast> {
             ) => {
                 return self.infer_explicit_type_alias_specialization(subscript, value_ty, false);
             }
-            Type::Dynamic(DynamicType::Unknown) => {
+            Type::Dynamic(DynamicType::Unknown(_)) => {
                 let slice_ty = self.infer_expression(slice, TypeContext::default());
                 let mut variables = FxOrderSet::default();
                 slice_ty.bind_and_find_all_legacy_typevars(
@@ -369,7 +369,7 @@ impl<'db, 'ast> TypeInferenceBuilder<'db, 'ast> {
                     &mut variables,
                 );
                 let generic_context = GenericContext::from_typevar_instances(db, variables);
-                return Type::Dynamic(DynamicType::UnknownGeneric(generic_context));
+                return Type::Dynamic(DynamicType::unknown_generic(generic_context));
             }
             _ => {}
         }
@@ -1003,7 +1003,7 @@ impl<'db, 'ast> TypeInferenceBuilder<'db, 'ast> {
                     &mut variables,
                 );
                 let generic_context = GenericContext::from_typevar_instances(db, variables);
-                Ok(Type::Dynamic(DynamicType::UnknownGeneric(generic_context)))
+                Ok(Type::Dynamic(DynamicType::unknown_generic(generic_context)))
             }
             _ => value_ty.subscript(db, slice_ty, expr_context),
         };

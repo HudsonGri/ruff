@@ -33,7 +33,7 @@ pub enum ClassBase<'db> {
 
 impl<'db> ClassBase<'db> {
     pub(crate) const fn unknown() -> Self {
-        Self::Dynamic(DynamicType::Unknown)
+        Self::Dynamic(DynamicType::unknown())
     }
 
     pub(super) fn recursive_type_normalized_impl(
@@ -55,7 +55,9 @@ impl<'db> ClassBase<'db> {
         match self {
             ClassBase::Class(class) => class.name(db),
             ClassBase::Dynamic(DynamicType::Any) => "Any",
-            ClassBase::Dynamic(DynamicType::Unknown | DynamicType::UnknownGeneric(_)) => "Unknown",
+            ClassBase::Dynamic(DynamicType::Unknown(_) | DynamicType::UnknownGeneric(..)) => {
+                "Unknown"
+            }
             ClassBase::Dynamic(DynamicType::UnspecializedTypeVar) => "UnspecializedTypeVar",
             ClassBase::Dynamic(
                 DynamicType::Todo(_)
