@@ -583,7 +583,6 @@ impl TypeRelationErrorContext {
         let stack = self.stack.borrow();
         stack
             .iter()
-            .rev()
             .enumerate()
             .map(|(indent, message)| format!("{}{}", "  ".repeat(indent), message))
             .collect()
@@ -671,7 +670,7 @@ impl<'a, 'c, 'db> TypeRelationChecker<'a, 'c, 'db> {
                 target = target.display(db)
             ));
 
-            error_context.push(format!("{message}:", message = get_message()));
+            error_context.push(get_message());
         }
     }
 
