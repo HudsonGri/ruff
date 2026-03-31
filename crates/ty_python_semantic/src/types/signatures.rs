@@ -109,6 +109,28 @@ impl<'db> CallableSignature<'db> {
         }))
     }
 
+    pub(crate) fn variance_of_type_alias_paramspec(
+        &self,
+        db: &'db dyn Db,
+        typevar: BoundTypeVarInstance<'db>,
+    ) -> TypeVarVariance {
+        debug_assert!(typevar.is_paramspec(db));
+        debug_assert!(typevar.paramspec_attr(db).is_none());
+
+        let args = typevar.with_paramspec_attr(db, ParamSpecAttrKind::Args);
+        let kwargs = typevar.with_paramspec_attr(db, ParamSpecAttrKind::Kwargs);
+
+        self.overloads
+            .iter()
+            .map(|signature| {
+                signature
+                    .variance_of(db, typevar)
+                    .join(signature.variance_of(db, args))
+                    .join(signature.variance_of(db, kwargs))
+            })
+            .collect()
+    }
+
     pub(crate) fn cycle_normalized(
         &self,
         db: &'db dyn Db,

@@ -722,6 +722,31 @@ reveal_type(foo.method)  # revealed: bound method Foo[(int, str, /)].method(int,
 reveal_type(foo.method(1, "a"))  # revealed: str
 ```
 
+### Widening `Self` to gradual `ParamSpec` specializations
+
+Regression test for false positives in ParamSpec-bearing wrapper classes that return `self` into a
+broader gradual specialization.
+
+```py
+from typing import Callable
+
+class Command[**P, T]:
+    _callback: Callable[P, T]
+
+    @property
+    def callback(self) -> Callable[P, T]:
+        return self._callback
+
+    def widen(self) -> "Command[..., object]":
+        return self
+
+def widen_generic[**P, T](command: Command[P, T]) -> "Command[..., object]":
+    return command
+
+reveal_type(Command[[int], str]().widen())  # revealed: Command[(...), object]
+reveal_type(widen_generic(Command[[int], str]()))  # revealed: Command[(...), object]
+```
+
 ### Gradual types propagate through `ParamSpec` inference
 
 ```py

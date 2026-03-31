@@ -42,7 +42,7 @@ use crate::place::{
     DefinedPlace, Definedness, Place, PlaceAndQualifiers, TypeOrigin, builtins_module_scope,
     imported_symbol, known_module_symbol,
 };
-use crate::semantic_index::definition::Definition;
+use crate::semantic_index::definition::{Definition, DefinitionKind};
 use crate::semantic_index::place::ScopedPlaceId;
 use crate::semantic_index::scope::ScopeId;
 use crate::semantic_index::{imported_modules, place_table, semantic_index};
@@ -1261,6 +1261,7 @@ impl<'db> Type<'db> {
 
     pub(crate) const fn as_type_alias(self) -> Option<TypeAliasType<'db>> {
         match self {
+            Type::TypeAlias(type_alias) => Some(type_alias),
             Type::KnownInstance(KnownInstanceType::TypeAliasType(type_alias)) => Some(type_alias),
             _ => None,
         }
@@ -6212,12 +6213,23 @@ impl<'db> VarianceInferable<'db> for Type<'db> {
                 nominal_instance_type.variance_of(db, typevar)
             }
             Type::GenericAlias(generic_alias) => generic_alias.variance_of(db, typevar),
-            Type::Callable(callable_type) => callable_type.signatures(db).variance_of(db, typevar),
-            // A type variable is always covariant in itself. For `ParamSpec`, treat `P.args` and
-            // `P.kwargs` as occurrences of the same logical type variable as `P`.
-            Type::TypeVar(other_typevar)
-                if other_typevar.is_same_typevar_binding_as(db, typevar) =>
-            {
+            Type::Callable(callable_type) => {
+                let signatures = callable_type.signatures(db);
+                if typevar.is_paramspec(db)
+                    && typevar.paramspec_attr(db).is_none()
+                    && matches!(
+                        typevar.binding_context(db),
+                        BindingContext::Definition(definition)
+                            if matches!(definition.kind(db), DefinitionKind::TypeAlias(_))
+                    )
+                {
+                    signatures.variance_of_type_alias_paramspec(db, typevar)
+                } else {
+                    signatures.variance_of(db, typevar)
+                }
+            }
+            // A type variable is always covariant in itself.
+            Type::TypeVar(other_typevar) if other_typevar == typevar => {
                 // type variables are covariant in themselves
                 TypeVarVariance::Covariant
             }
