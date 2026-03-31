@@ -314,6 +314,8 @@ fn type_alias_variance() {
     db.write_dedented(
         "/src/a.py",
         r#"
+from typing import Callable
+
 class Covariant[T]:
     def get(self) -> T:
         raise ValueError
@@ -335,6 +337,7 @@ type CovariantAlias[T] = Covariant[T]
 type ContravariantAlias[T] = Contravariant[T]
 type InvariantAlias[T] = Invariant[T]
 type BivariantAlias[T] = Bivariant[T]
+type ParamSpecAlias[**P] = Callable[P, int]
 
 type RecursiveAlias[T] = None | list[RecursiveAlias[T]]
 type RecursiveAlias2[T] = None | list[T] | list[RecursiveAlias2[T]]
@@ -369,6 +372,8 @@ type RecursiveAlias2[T] = None | list[T] | list[RecursiveAlias2[T]]
         TypeVarVariance::Bivariant
     );
 
+    let paramspec = get_type_alias(&db, "ParamSpecAlias");
+
     let recursive = get_type_alias(&db, "RecursiveAlias");
     assert_eq!(
         KnownInstanceType::TypeAliasType(TypeAliasType::PEP695(recursive))
@@ -387,6 +392,7 @@ type RecursiveAlias2[T] = None | list[T] | list[RecursiveAlias2[T]]
     assert_effective_variance(&db, contravariant, TypeVarVariance::Contravariant);
     assert_effective_variance(&db, invariant, TypeVarVariance::Invariant);
     assert_effective_variance(&db, bivariant, TypeVarVariance::Covariant);
+    assert_effective_variance(&db, paramspec, TypeVarVariance::Contravariant);
     assert_effective_variance(&db, recursive, TypeVarVariance::Covariant);
     assert_effective_variance(&db, recursive2, TypeVarVariance::Invariant);
 

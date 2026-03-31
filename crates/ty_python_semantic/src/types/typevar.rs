@@ -835,6 +835,11 @@ impl<'db> BoundTypeVarInstance<'db> {
                 };
 
                 match inferred_variance {
+                    // ParamSpecs represent callable parameter lists, so if inference bottoms out
+                    // at bivariance we still want the effective variance to be contravariant.
+                    TypeVarVariance::Bivariant if self.is_paramspec(db) => {
+                        TypeVarVariance::Contravariant
+                    }
                     // bivariance is confusing and not useful; fall back to covariant
                     TypeVarVariance::Bivariant => TypeVarVariance::Covariant,
                     variance => variance,
