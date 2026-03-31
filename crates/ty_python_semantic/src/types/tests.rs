@@ -401,15 +401,15 @@ type RecursiveAlias2[T] = None | list[T] | list[RecursiveAlias2[T]]
     assert_effective_variance(&db, covariant, TypeVarVariance::Covariant);
     assert_effective_variance(&db, contravariant, TypeVarVariance::Contravariant);
     assert_effective_variance(&db, invariant, TypeVarVariance::Invariant);
-    assert_effective_variance(&db, bivariant, TypeVarVariance::Covariant);
+    assert_effective_variance(&db, bivariant, TypeVarVariance::Bivariant);
     assert_effective_variance(&db, paramspec, TypeVarVariance::Contravariant);
-    assert_effective_variance(&db, recursive, TypeVarVariance::Covariant);
+    assert_effective_variance(&db, recursive, TypeVarVariance::Bivariant);
     assert_effective_variance(&db, recursive2, TypeVarVariance::Invariant);
 
     assert_eq!(
         get_bound_typevar(&db, bivariant)
             .variance_with_polarity(&db, TypeVarVariance::Contravariant),
-        TypeVarVariance::Contravariant
+        TypeVarVariance::Bivariant
     );
 }
 
@@ -443,6 +443,45 @@ class Class_ParamSpec(Generic[DefaultP]):
             .to_string(),
         "<class 'Class_ParamSpec[(str, int, /)]'>"
     );
+}
+
+#[test]
+fn gradual_paramspec_value_is_assignable_to_bound_paramspec() {
+    let mut db = setup_db();
+    db.write_dedented(
+        "/src/a.py",
+        r#"
+class Wrapper[**P]:
+    pass
+"#,
+    )
+    .unwrap();
+
+    let module = ruff_db::files::system_path_to_file(&db, "/src/a.py").unwrap();
+    let ty = global_symbol(&db, module, "Wrapper").place.expect_type();
+    let Type::ClassLiteral(class) = ty else {
+        panic!("Expected `Wrapper` to be a class literal, got {ty:?}");
+    };
+
+    let paramspec = class
+        .generic_context(&db)
+        .unwrap()
+        .variables(&db)
+        .next()
+        .unwrap();
+
+    let gradual = Type::paramspec_value_callable(&db, Parameters::gradual_form());
+    let concrete = Type::paramspec_value_callable(
+        &db,
+        Parameters::new(
+            &db,
+            [Parameter::positional_only(None)
+                .with_annotated_type(KnownClass::Int.to_instance(&db))],
+        ),
+    );
+
+    assert!(gradual.is_assignable_to(&db, Type::TypeVar(paramspec)));
+    assert!(!concrete.is_assignable_to(&db, Type::TypeVar(paramspec)));
 }
 
 #[test]

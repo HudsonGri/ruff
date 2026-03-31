@@ -754,6 +754,7 @@ impl<'db> BoundTypeVarInstance<'db> {
 
     /// Returns whether two bound typevars share the same underlying binding, ignoring any
     /// `ParamSpec` component marker (`.args` or `.kwargs`).
+    #[cfg(test)]
     pub(crate) fn is_same_typevar_binding_as(self, db: &'db dyn Db, other: Self) -> bool {
         self.typevar(db).identity(db) == other.typevar(db).identity(db)
             && self.binding_context(db) == other.binding_context(db)
@@ -830,24 +831,25 @@ impl<'db> BoundTypeVarInstance<'db> {
         polarity: TypeVarVariance,
     ) -> TypeVarVariance {
         let _span = tracing::trace_span!("variance_with_polarity").entered();
-
         match self.typevar(db).explicit_variance(db) {
             Some(explicit_variance) => explicit_variance.compose(polarity),
-            None => {
-                let inferred_variance = match self.binding_context(db) {
-                    BindingContext::Definition(definition) => {
-                        binding_type(db, definition).variance_of(db, self)
-                    }
-                    BindingContext::Synthetic => TypeVarVariance::Invariant,
-                };
-
-                match inferred_variance {
-                    // bivariance is confusing and not useful; fall back to covariant
-                    TypeVarVariance::Bivariant => TypeVarVariance::Covariant,
-                    variance => variance,
+            None => match self.binding_context(db) {
+                BindingContext::Definition(definition) => {
+                    binding_type(db, definition).as_type_alias().map_or_else(
+                        || {
+                            binding_type(db, definition)
+                                .with_polarity(polarity)
+                                .variance_of(db, self)
+                        },
+                        |type_alias| {
+                            KnownInstanceType::TypeAliasType(type_alias)
+                                .variance_of(db, self)
+                                .compose(polarity)
+                        },
+                    )
                 }
-                .compose(polarity)
-            }
+                BindingContext::Synthetic => TypeVarVariance::Invariant,
+            },
         }
     }
 

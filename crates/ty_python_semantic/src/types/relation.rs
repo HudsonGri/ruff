@@ -3,6 +3,7 @@ use ruff_python_ast::name::Name;
 use rustc_hash::FxHashSet;
 
 use crate::place::{DefinedPlace, Place};
+use crate::types::callable::CallableTypeKind;
 use crate::types::constraints::{
     ConstraintSetBuilder, IteratorConstraintsExtension, OptionConstraintsExtension,
 };
@@ -19,6 +20,18 @@ use crate::{
     Db,
     types::{Type, constraints::ConstraintSet, generics::InferableTypeVars},
 };
+
+fn is_gradual_paramspec_value<'db>(db: &'db dyn Db, ty: Type<'db>) -> bool {
+    let Type::Callable(callable) = ty else {
+        return false;
+    };
+
+    matches!(callable.kind(db), CallableTypeKind::ParamSpecValue)
+        && callable
+            .signatures(db)
+            .iter()
+            .all(|signature| signature.parameters().is_gradual())
+}
 
 /// A non-exhaustive enumeration of relations that can exist between types.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
@@ -1045,6 +1058,19 @@ impl<'a, 'c, 'db> TypeRelationChecker<'a, 'c, 'db> {
             // (If the typevar is bounded, it might be specialized to a smaller type than the
             // bound. This is true even if the bound is a final class, since the typevar can still
             // be specialized to `Never`.)
+            //
+            // For assignability, a gradual ParamSpec value (`...` or `Any` in a ParamSpec slot)
+            // can flow to a bare ParamSpec type variable. This is required for generic wrappers
+            // like `Command[**P, T]` to widen to `Command[..., object]`.
+            (_, Type::TypeVar(bound_typevar))
+                if self.relation.is_assignability()
+                    && !bound_typevar.is_inferable(db, self.inferable)
+                    && bound_typevar.is_paramspec(db)
+                    && is_gradual_paramspec_value(db, source) =>
+            {
+                self.always()
+            }
+
             (_, Type::TypeVar(bound_typevar))
                 if !bound_typevar.is_inferable(db, self.inferable) =>
             {
