@@ -3185,12 +3185,11 @@ def function():
             "#,
         );
 
-        // TODO: Should this be constravariant instead?
         assert_snapshot!(test.hover(), @r###"
-        P@Alias (covariant)
+        P@Alias (contravariant)
         ---------------------------------------------
         ```python
-        P@Alias (covariant)
+        P@Alias (contravariant)
         ```
         ---------------------------------------------
         info[hover]: Hovered content is
