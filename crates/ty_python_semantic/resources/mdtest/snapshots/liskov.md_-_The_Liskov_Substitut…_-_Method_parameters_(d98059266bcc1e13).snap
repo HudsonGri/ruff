@@ -2,6 +2,7 @@
 source: crates/ty_test/src/lib.rs
 expression: snapshot
 ---
+
 ---
 mdtest name: liskov.md - The Liskov Substitution Principle - Method parameters
 mdtest path: crates/ty_python_semantic/resources/mdtest/liskov.md
@@ -196,6 +197,7 @@ error[invalid-method-override]: Invalid override of method `method`
  3 |
  4 | class Sub1(Super):
    |
+info: incompatible parameter types `bool` and `int`
 info: This violates the Liskov Substitution Principle
 info: rule `invalid-method-override` is enabled by default
 
