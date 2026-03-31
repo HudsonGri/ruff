@@ -165,3 +165,25 @@ def _(a: A):
         assert_type(a, Intersection[A, B, Not[C], Not[D]])
         assert_type(a, Intersection[B, A, Not[D], Not[C]])
 ```
+
+## ParamSpec defaults
+
+```toml
+[environment]
+python-version = "3.13"
+```
+
+```py
+from typing import Callable, Generic, ParamSpec
+from typing_extensions import assert_type
+
+DefaultP = ParamSpec("DefaultP", default=[str, int])
+
+class Class_ParamSpec(Generic[DefaultP]):
+    x: Callable[DefaultP, None]
+
+def _(a: Class_ParamSpec):
+    assert_type(a.x, Callable[[str, int], None])
+    assert_type(Class_ParamSpec(), Class_ParamSpec[str, int])
+    assert_type(Class_ParamSpec[[bool, bool]](), Class_ParamSpec[bool, bool])
+```

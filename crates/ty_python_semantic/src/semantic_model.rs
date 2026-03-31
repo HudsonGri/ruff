@@ -755,4 +755,87 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn paramspec_in_type_alias_rhs_has_contravariant_variance() -> anyhow::Result<()> {
+        use crate::semantic_index::semantic_index;
+        use crate::types::{
+            KnownInstanceType, Type, TypeVarVariance, binding_type, declaration_type,
+        };
+
+        let db = TestDbBuilder::new()
+            .with_file(
+                "/src/foo.py",
+                "from typing import Callable\ntype Alias[**P = [int, str]] = Callable[P, int]\n",
+            )
+            .build()?;
+
+        let foo = system_path_to_file(&db, "/src/foo.py").unwrap();
+        let ast = parsed_module(&db, foo).load(&db);
+        let alias = ast.suite()[1].as_type_alias_stmt().unwrap();
+        let paramspec = alias.type_params.as_ref().unwrap().iter().next().unwrap();
+        let paramspec = paramspec.as_param_spec().unwrap();
+
+        let index = semantic_index(&db, foo);
+        let alias_definition = index.expect_single_definition(alias);
+        let paramspec_definition = index.expect_single_definition(paramspec);
+
+        let Type::KnownInstance(KnownInstanceType::TypeVar(typevar)) =
+            declaration_type(&db, paramspec_definition).inner_type()
+        else {
+            panic!("Expected ParamSpec declaration to infer as an unbound typevar");
+        };
+
+        let bound = typevar.bind_pep695(&db).unwrap();
+        let alias_ty = binding_type(&db, alias_definition).as_type_alias().unwrap();
+        let expected = alias_ty
+            .as_pep_695_type_alias()
+            .unwrap()
+            .generic_context(&db)
+            .unwrap()
+            .variables(&db)
+            .next()
+            .unwrap();
+
+        assert_eq!(bound, expected);
+        assert_eq!(bound.variance(&db), TypeVarVariance::Contravariant);
+
+        Ok(())
+    }
+
+    #[test]
+    fn legacy_paramspec_default_class_call_uses_paramspec_specialization() -> anyhow::Result<()> {
+        let db = TestDbBuilder::new()
+            .with_file(
+                "/src/foo.py",
+                "from typing import Callable, Generic, ParamSpec\n\
+DefaultP = ParamSpec(\"DefaultP\", default=[str, int])\n\
+class Class_ParamSpec(Generic[DefaultP]):\n\
+    x: Callable[DefaultP, None]\n\
+Class_ParamSpec()\n",
+            )
+            .build()?;
+
+        let foo = system_path_to_file(&db, "/src/foo.py").unwrap();
+        let ast = parsed_module(&db, foo).load(&db);
+        let call = ast
+            .suite()
+            .last()
+            .unwrap()
+            .as_expr_stmt()
+            .unwrap()
+            .value
+            .as_call_expr()
+            .unwrap();
+
+        let model = SemanticModel::new(&db, foo);
+        let ty = call.inferred_type(&model).unwrap();
+
+        assert_eq!(
+            ty.display(&db).to_string(),
+            "Class_ParamSpec[(str, int, /)]"
+        );
+
+        Ok(())
+    }
 }

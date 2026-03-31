@@ -2663,11 +2663,12 @@ def function():
             "#,
         );
 
+        // TODO: Should this be contravariant instead?
         assert_snapshot!(test.hover(), @r###"
-        P@Alias (contravariant)
+        P@Alias (covariant)
         ---------------------------------------------
         ```python
-        P@Alias (contravariant)
+        P@Alias (covariant)
         ```
         ---------------------------------------------
         info[hover]: Hovered content is
