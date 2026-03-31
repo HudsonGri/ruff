@@ -752,6 +752,13 @@ impl<'db> BoundTypeVarInstance<'db> {
         self.identity(db) == other.identity(db)
     }
 
+    /// Returns whether two bound typevars share the same underlying binding, ignoring any
+    /// `ParamSpec` component marker (`.args` or `.kwargs`).
+    pub(crate) fn is_same_typevar_binding_as(self, db: &'db dyn Db, other: Self) -> bool {
+        self.typevar(db).identity(db) == other.typevar(db).identity(db)
+            && self.binding_context(db) == other.binding_context(db)
+    }
+
     /// Create a new PEP 695 type variable that can be used in signatures
     /// of synthetic generic functions.
     pub(crate) fn synthetic(db: &'db dyn Db, name: Name, variance: TypeVarVariance) -> Self {
@@ -835,11 +842,6 @@ impl<'db> BoundTypeVarInstance<'db> {
                 };
 
                 match inferred_variance {
-                    // ParamSpecs represent callable parameter lists, so if inference bottoms out
-                    // at bivariance we still want the effective variance to be contravariant.
-                    TypeVarVariance::Bivariant if self.is_paramspec(db) => {
-                        TypeVarVariance::Contravariant
-                    }
                     // bivariance is confusing and not useful; fall back to covariant
                     TypeVarVariance::Bivariant => TypeVarVariance::Covariant,
                     variance => variance,

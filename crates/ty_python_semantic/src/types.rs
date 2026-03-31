@@ -6295,7 +6295,9 @@ impl<'db> VarianceInferable<'db> for Type<'db> {
             Type::Callable(callable_type) => callable_type.signatures(db).variance_of(db, typevar),
             // A type variable is always covariant in itself. For `ParamSpec`, treat `P.args` and
             // `P.kwargs` as occurrences of the same logical type variable as `P`.
-            Type::TypeVar(other_typevar) if other_typevar.is_same_typevar_as(db, typevar) => {
+            Type::TypeVar(other_typevar)
+                if other_typevar.is_same_typevar_binding_as(db, typevar) =>
+            {
                 // type variables are covariant in themselves
                 TypeVarVariance::Covariant
             }

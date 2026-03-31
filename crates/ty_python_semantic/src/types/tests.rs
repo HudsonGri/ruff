@@ -1,6 +1,6 @@
 use super::*;
 use crate::db::tests::{TestDbBuilder, setup_db};
-use crate::place::{typing_extensions_symbol, typing_symbol};
+use crate::place::{global_symbol, typing_extensions_symbol, typing_symbol};
 use crate::types::type_alias::PEP695TypeAliasType;
 use ruff_db::system::DbWithWritableSystem as _;
 use ruff_python_ast as ast;
@@ -337,7 +337,7 @@ type CovariantAlias[T] = Covariant[T]
 type ContravariantAlias[T] = Contravariant[T]
 type InvariantAlias[T] = Invariant[T]
 type BivariantAlias[T] = Bivariant[T]
-type ParamSpecAlias[**P] = Callable[P, int]
+type ParamSpecAlias[**P = [int, str]] = Callable[P, int]
 
 type RecursiveAlias[T] = None | list[RecursiveAlias[T]]
 type RecursiveAlias2[T] = None | list[T] | list[RecursiveAlias2[T]]
@@ -373,6 +373,16 @@ type RecursiveAlias2[T] = None | list[T] | list[RecursiveAlias2[T]]
     );
 
     let paramspec = get_type_alias(&db, "ParamSpecAlias");
+    let paramspec_typevar = get_bound_typevar(&db, paramspec);
+    let paramspec_args = paramspec_typevar.with_paramspec_attr(&db, ParamSpecAttrKind::Args);
+    let paramspec_kwargs = paramspec_typevar.with_paramspec_attr(&db, ParamSpecAttrKind::Kwargs);
+    assert_eq!(
+        KnownInstanceType::TypeAliasType(TypeAliasType::PEP695(paramspec))
+            .variance_of(&db, paramspec_typevar),
+        TypeVarVariance::Contravariant
+    );
+    assert!(!paramspec_args.is_same_typevar_as(&db, paramspec_kwargs));
+    assert!(paramspec_args.is_same_typevar_binding_as(&db, paramspec_kwargs));
 
     let recursive = get_type_alias(&db, "RecursiveAlias");
     assert_eq!(
@@ -400,6 +410,38 @@ type RecursiveAlias2[T] = None | list[T] | list[RecursiveAlias2[T]]
         get_bound_typevar(&db, bivariant)
             .variance_with_polarity(&db, TypeVarVariance::Contravariant),
         TypeVarVariance::Contravariant
+    );
+}
+
+#[test]
+fn legacy_paramspec_class_default_specialization() {
+    let mut db = setup_db();
+    db.write_dedented(
+        "/src/a.py",
+        r#"
+from typing import Callable, Generic, ParamSpec
+
+DefaultP = ParamSpec("DefaultP", default=[str, int])
+
+class Class_ParamSpec(Generic[DefaultP]):
+    x: Callable[DefaultP, None]
+"#,
+    )
+    .unwrap();
+
+    let module = ruff_db::files::system_path_to_file(&db, "/src/a.py").unwrap();
+    let ty = global_symbol(&db, module, "Class_ParamSpec")
+        .place
+        .expect_type();
+    let Type::ClassLiteral(class) = ty else {
+        panic!("Expected `Class_ParamSpec` to be a class literal, got {ty:?}");
+    };
+
+    assert_eq!(
+        Type::from(class.default_specialization(&db))
+            .display(&db)
+            .to_string(),
+        "<class 'Class_ParamSpec[(str, int, /)]'>"
     );
 }
 
