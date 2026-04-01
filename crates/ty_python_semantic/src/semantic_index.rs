@@ -27,6 +27,7 @@ pub use crate::semantic_index::scope::FileScopeId;
 use crate::semantic_index::scope::{
     NodeWithScopeKey, NodeWithScopeRef, Scope, ScopeId, ScopeKind, ScopeLaziness,
 };
+use crate::semantic_index::statement::{Statement, StatementNodeKey};
 use crate::semantic_index::symbol::ScopedSymbolId;
 use crate::semantic_index::use_def::{EnclosingSnapshotKey, ScopedEnclosingSnapshotId, UseDefMap};
 use crate::semantic_model::HasTrackedScope;
@@ -42,6 +43,7 @@ pub(crate) mod predicate;
 mod re_exports;
 mod reachability_constraints;
 pub(crate) mod scope;
+pub mod statement;
 pub(crate) mod symbol;
 mod use_def;
 
@@ -321,8 +323,14 @@ pub(crate) struct SemanticIndex<'db> {
     /// Map from a standalone expression to its [`Expression`] ingredient.
     expressions_by_node: FxHashMap<ExpressionNodeKey, Expression<'db>>,
 
+    /// Map from a standalone statemetn to its [`Statement`] ingredient.
+    statements_by_node: FxHashMap<StatementNodeKey, Statement<'db>>,
+
     /// Map from nodes that create a scope to the scope they create.
     scopes_by_node: FxHashMap<NodeWithScopeKey, FileScopeId>,
+
+    /// Maps from lambda expressions to their containing statement.
+    enclosing_lambda_statements: FxHashMap<ExpressionNodeKey, Statement<'db>>,
 
     /// Map from the file-local [`FileScopeId`] to the salsa-ingredient [`ScopeId`].
     scope_ids_by_scope: IndexVec<FileScopeId, ScopeId<'db>>,
@@ -473,6 +481,13 @@ impl<'db> SemanticIndex<'db> {
             .map(|node_ref| self.expect_single_definition(node_ref))
     }
 
+    pub(crate) fn enclosing_lambda_statement(
+        &self,
+        lambda: ExpressionNodeKey,
+    ) -> Option<Statement<'db>> {
+        self.enclosing_lambda_statements.get(&lambda).copied()
+    }
+
     pub(crate) fn is_scope_reachable(&self, db: &'db dyn Db, scope_id: FileScopeId) -> bool {
         self.parent_scope_id(scope_id)
             .is_none_or(|parent_scope_id| {
@@ -599,6 +614,13 @@ impl<'db> SemanticIndex<'db> {
     ) -> bool {
         self.expressions_by_node
             .contains_key(&expression_key.into())
+    }
+
+    pub(crate) fn try_statement(
+        &self,
+        statement_key: impl Into<StatementNodeKey>,
+    ) -> Option<Statement<'db>> {
+        self.statements_by_node.get(&statement_key.into()).copied()
     }
 
     /// Returns the id of the scope that `node` creates.
