@@ -94,6 +94,9 @@ pub struct AnalysisSettings {
     pub allowed_unresolved_imports: ModuleGlobSet,
 
     pub replace_imports_with_any: ModuleGlobSet,
+
+    /// Whether Django model type synthesis is enabled.
+    pub django: bool,
 }
 
 impl Default for AnalysisSettings {
@@ -102,6 +105,7 @@ impl Default for AnalysisSettings {
             respect_type_ignore_comments: true,
             allowed_unresolved_imports: ModuleGlobSet::empty(),
             replace_imports_with_any: ModuleGlobSet::empty(),
+            django: false,
         }
     }
 }

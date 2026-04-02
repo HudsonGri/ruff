@@ -137,6 +137,15 @@ pub enum KnownClass {
     ConstraintSet,
     GenericContext,
     Specialization,
+    // Django ORM
+    DjangoModel,           // django.db.models.Model (and django.db.models.base.Model)
+    DjangoManager,         // django.db.models.Manager
+    DjangoQuerySet,        // django.db.models.QuerySet
+    DjangoField,           // django.db.models.fields.Field
+    DjangoRelatedField,    // django.db.models.fields.related.RelatedField
+    DjangoForeignKey,      // django.db.models.ForeignKey
+    DjangoOneToOneField,   // django.db.models.OneToOneField
+    DjangoManyToManyField, // django.db.models.ManyToManyField
 }
 
 impl KnownClass {
@@ -248,7 +257,15 @@ impl KnownClass {
             | Self::GenericContext
             | Self::Specialization
             | Self::ProtocolMeta
-            | Self::TypedDictFallback => Some(Truthiness::Ambiguous),
+            | Self::TypedDictFallback
+            | Self::DjangoModel
+            | Self::DjangoManager
+            | Self::DjangoQuerySet
+            | Self::DjangoField
+            | Self::DjangoRelatedField
+            | Self::DjangoForeignKey
+            | Self::DjangoOneToOneField
+            | Self::DjangoManyToManyField => Some(Truthiness::Ambiguous),
 
             Self::Tuple => None,
         }
@@ -341,7 +358,15 @@ impl KnownClass {
             | KnownClass::BuiltinFunctionType
             | KnownClass::ProtocolMeta
             | KnownClass::Template
-            | KnownClass::Path => false,
+            | KnownClass::Path
+            | KnownClass::DjangoModel
+            | KnownClass::DjangoManager
+            | KnownClass::DjangoQuerySet
+            | KnownClass::DjangoField
+            | KnownClass::DjangoRelatedField
+            | KnownClass::DjangoForeignKey
+            | KnownClass::DjangoOneToOneField
+            | KnownClass::DjangoManyToManyField => false,
         }
     }
 
@@ -431,7 +456,15 @@ impl KnownClass {
             | KnownClass::BuiltinFunctionType
             | KnownClass::ProtocolMeta
             | KnownClass::Template
-            | KnownClass::Path => false,
+            | KnownClass::Path
+            | KnownClass::DjangoModel
+            | KnownClass::DjangoManager
+            | KnownClass::DjangoQuerySet
+            | KnownClass::DjangoField
+            | KnownClass::DjangoRelatedField
+            | KnownClass::DjangoForeignKey
+            | KnownClass::DjangoOneToOneField
+            | KnownClass::DjangoManyToManyField => false,
         }
     }
 
@@ -520,7 +553,15 @@ impl KnownClass {
             | KnownClass::BuiltinFunctionType
             | KnownClass::ProtocolMeta
             | KnownClass::Template
-            | KnownClass::Path => false,
+            | KnownClass::Path
+            | KnownClass::DjangoModel
+            | KnownClass::DjangoManager
+            | KnownClass::DjangoQuerySet
+            | KnownClass::DjangoField
+            | KnownClass::DjangoRelatedField
+            | KnownClass::DjangoForeignKey
+            | KnownClass::DjangoOneToOneField
+            | KnownClass::DjangoManyToManyField => false,
         }
     }
 
@@ -622,7 +663,15 @@ impl KnownClass {
             | Self::Template
             | Self::Path
             | Self::Mapping
-            | Self::Sequence => false,
+            | Self::Sequence
+            | Self::DjangoModel
+            | Self::DjangoManager
+            | Self::DjangoQuerySet
+            | Self::DjangoField
+            | Self::DjangoRelatedField
+            | Self::DjangoForeignKey
+            | Self::DjangoOneToOneField
+            | Self::DjangoManyToManyField => false,
         }
     }
 
@@ -714,7 +763,15 @@ impl KnownClass {
             | KnownClass::Path
             | KnownClass::ConstraintSet
             | KnownClass::GenericContext
-            | KnownClass::Specialization => false,
+            | KnownClass::Specialization
+            | KnownClass::DjangoModel
+            | KnownClass::DjangoManager
+            | KnownClass::DjangoQuerySet
+            | KnownClass::DjangoField
+            | KnownClass::DjangoRelatedField
+            | KnownClass::DjangoForeignKey
+            | KnownClass::DjangoOneToOneField
+            | KnownClass::DjangoManyToManyField => false,
             KnownClass::NamedTupleFallback | KnownClass::TypedDictFallback => true,
         }
     }
@@ -833,6 +890,14 @@ impl KnownClass {
             Self::Template => "Template",
             Self::Path => "Path",
             Self::ProtocolMeta => "_ProtocolMeta",
+            Self::DjangoModel => "Model",
+            Self::DjangoManager => "Manager",
+            Self::DjangoQuerySet => "QuerySet",
+            Self::DjangoField => "Field",
+            Self::DjangoRelatedField => "RelatedField",
+            Self::DjangoForeignKey => "ForeignKey",
+            Self::DjangoOneToOneField => "OneToOneField",
+            Self::DjangoManyToManyField => "ManyToManyField",
         }
     }
 
@@ -1212,6 +1277,18 @@ impl KnownClass {
             | Self::Specialization => KnownModule::TyExtensions,
             Self::Template => KnownModule::Templatelib,
             Self::Path => KnownModule::Pathlib,
+            // Django is third-party and not a KnownModule. `canonical_module` is only used for
+            // display and for `try_to_class_literal_without_logging` (stdlib lookup). Neither
+            // code path is reached for Django variants in normal operation, so this placeholder
+            // is safe. Django class lookup goes through `check_django_module` instead.
+            Self::DjangoModel
+            | Self::DjangoManager
+            | Self::DjangoQuerySet
+            | Self::DjangoField
+            | Self::DjangoRelatedField
+            | Self::DjangoForeignKey
+            | Self::DjangoOneToOneField
+            | Self::DjangoManyToManyField => KnownModule::Builtins,
         }
     }
 
@@ -1303,7 +1380,15 @@ impl KnownClass {
             | Self::BuiltinFunctionType
             | Self::ProtocolMeta
             | Self::Template
-            | Self::Path => Some(false),
+            | Self::Path
+            | Self::DjangoModel
+            | Self::DjangoManager
+            | Self::DjangoQuerySet
+            | Self::DjangoField
+            | Self::DjangoRelatedField
+            | Self::DjangoForeignKey
+            | Self::DjangoOneToOneField
+            | Self::DjangoManyToManyField => Some(false),
 
             Self::Tuple => None,
         }
@@ -1398,7 +1483,15 @@ impl KnownClass {
             | Self::BuiltinFunctionType
             | Self::ProtocolMeta
             | Self::Template
-            | Self::Path => false,
+            | Self::Path
+            | Self::DjangoModel
+            | Self::DjangoManager
+            | Self::DjangoQuerySet
+            | Self::DjangoField
+            | Self::DjangoRelatedField
+            | Self::DjangoForeignKey
+            | Self::DjangoOneToOneField
+            | Self::DjangoManyToManyField => false,
         }
     }
 
@@ -1496,7 +1589,7 @@ impl KnownClass {
             "NotImplementedType" if Program::get(db).python_version(db) >= PythonVersion::PY310 => {
                 &[Self::NotImplementedType]
             }
-            "Field" => &[Self::Field],
+            "Field" => &[Self::Field, Self::DjangoField],
             "KW_ONLY" => &[Self::KwOnly],
             "NamedTupleFallback" => &[Self::NamedTupleFallback],
             "NamedTupleLike" => &[Self::NamedTupleLike],
@@ -1507,15 +1600,32 @@ impl KnownClass {
             "Template" => &[Self::Template],
             "Path" => &[Self::Path],
             "_ProtocolMeta" => &[Self::ProtocolMeta],
+            // Django ORM classes
+            "Model" => &[Self::DjangoModel],
+            "Manager" => &[Self::DjangoManager],
+            "QuerySet" => &[Self::DjangoQuerySet],
+            "RelatedField" => &[Self::DjangoRelatedField],
+            "ForeignKey" => &[Self::DjangoForeignKey],
+            "OneToOneField" => &[Self::DjangoOneToOneField],
+            "ManyToManyField" => &[Self::DjangoManyToManyField],
             _ => return None,
         };
 
-        let module = file_to_module(db, file)?.known(db)?;
-
-        candidates
-            .iter()
-            .copied()
-            .find(|&candidate| candidate.check_module(db, module))
+        let module = file_to_module(db, file)?;
+        if let Some(known_module) = module.known(db) {
+            // Stdlib path: check by KnownModule
+            candidates
+                .iter()
+                .copied()
+                .find(|&candidate| candidate.check_module(db, known_module))
+        } else {
+            // Third-party path: check by module name prefix (Django is not a KnownModule)
+            let module_name = module.name(db).as_str();
+            candidates
+                .iter()
+                .copied()
+                .find(|&candidate| candidate.check_django_module(module_name))
+        }
     }
 
     /// Return `true` if the module of `self` matches `module`
@@ -1605,6 +1715,42 @@ impl KnownClass {
             | Self::ProtocolMeta
             | Self::NewType => matches!(module, KnownModule::Typing | KnownModule::TypingExtensions),
             Self::Deprecated => matches!(module, KnownModule::Warnings | KnownModule::TypingExtensions),
+            // Django variants are third-party and never matched by KnownModule; always return false here.
+            Self::DjangoModel
+            | Self::DjangoManager
+            | Self::DjangoQuerySet
+            | Self::DjangoField
+            | Self::DjangoRelatedField
+            | Self::DjangoForeignKey
+            | Self::DjangoOneToOneField
+            | Self::DjangoManyToManyField => false,
+        }
+    }
+
+    /// Returns true if this Django `KnownClass` can come from the given (third-party) module name.
+    /// Only returns true for Django variants; all stdlib variants return false.
+    fn check_django_module(self, module_name: &str) -> bool {
+        match self {
+            Self::DjangoModel => {
+                module_name == "django.db.models" || module_name == "django.db.models.base"
+            }
+            Self::DjangoManager => {
+                module_name == "django.db.models" || module_name == "django.db.models.manager"
+            }
+            Self::DjangoQuerySet => {
+                module_name == "django.db.models" || module_name == "django.db.models.query"
+            }
+            Self::DjangoField => {
+                module_name == "django.db.models"
+                    || module_name == "django.db.models.fields"
+                    || module_name == "django.db.models.fields.files"
+            }
+            Self::DjangoRelatedField => module_name == "django.db.models.fields.related",
+            Self::DjangoForeignKey | Self::DjangoOneToOneField | Self::DjangoManyToManyField => {
+                module_name == "django.db.models"
+                    || module_name == "django.db.models.fields.related"
+            }
+            _ => false,
         }
     }
 
@@ -1832,6 +1978,20 @@ mod tests {
                 source: PythonVersionSource::default(),
             });
         for class in KnownClass::iter() {
+            // Django variants are third-party; they can't be found in typeshed/stdlib.
+            if matches!(
+                class,
+                KnownClass::DjangoModel
+                    | KnownClass::DjangoManager
+                    | KnownClass::DjangoQuerySet
+                    | KnownClass::DjangoField
+                    | KnownClass::DjangoRelatedField
+                    | KnownClass::DjangoForeignKey
+                    | KnownClass::DjangoOneToOneField
+                    | KnownClass::DjangoManyToManyField
+            ) {
+                continue;
+            }
             let class_name = class.name(&db);
             let class_module =
                 resolve_module_confident(&db, &class.canonical_module(&db).name()).unwrap();
@@ -1860,6 +2020,21 @@ mod tests {
             });
 
         for class in KnownClass::iter() {
+            // Django variants are third-party; they can't be found in typeshed/stdlib.
+            if matches!(
+                class,
+                KnownClass::DjangoModel
+                    | KnownClass::DjangoManager
+                    | KnownClass::DjangoQuerySet
+                    | KnownClass::DjangoField
+                    | KnownClass::DjangoRelatedField
+                    | KnownClass::DjangoForeignKey
+                    | KnownClass::DjangoOneToOneField
+                    | KnownClass::DjangoManyToManyField
+            ) {
+                continue;
+            }
+
             // Check the class can be looked up successfully
             class.try_to_class_literal_without_logging(&db).unwrap();
 
@@ -1885,6 +2060,20 @@ mod tests {
         // This makes the test far faster as it minimizes the number of times
         // we need to change the Python version in the loop.
         let mut classes: Vec<(KnownClass, PythonVersion)> = KnownClass::iter()
+            // Django variants are third-party; they can't be found in typeshed/stdlib.
+            .filter(|class| {
+                !matches!(
+                    class,
+                    KnownClass::DjangoModel
+                        | KnownClass::DjangoManager
+                        | KnownClass::DjangoQuerySet
+                        | KnownClass::DjangoField
+                        | KnownClass::DjangoRelatedField
+                        | KnownClass::DjangoForeignKey
+                        | KnownClass::DjangoOneToOneField
+                        | KnownClass::DjangoManyToManyField
+                )
+            })
             .map(|class| {
                 let version_added = match class {
                     KnownClass::Template => PythonVersion::PY314,

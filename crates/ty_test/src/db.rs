@@ -64,6 +64,7 @@ impl Db {
                 respect_type_ignore_comments: respect_type_ignore_comments_default,
                 allowed_unresolved_imports: allowed_unresolved_imports_default,
                 replace_imports_with_any: replace_imports_with_any_default,
+                django: django_default,
             } = AnalysisSettings::default();
 
             let allowed_unresolved_imports = if let Some(allowed_unresolved_imports) =
@@ -100,6 +101,7 @@ impl Db {
                     .unwrap_or(respect_type_ignore_comments_default),
                 allowed_unresolved_imports,
                 replace_imports_with_any,
+                django: options.django.unwrap_or(django_default),
             }
         } else {
             AnalysisSettings::default()

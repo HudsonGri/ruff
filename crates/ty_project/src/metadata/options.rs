@@ -1382,6 +1382,23 @@ pub struct AnalysisOptions {
         "#
     )]
     pub replace_imports_with_any: Option<Vec<RangedValue<String>>>,
+
+    /// Enable Django model type synthesis.
+    ///
+    /// When set to `true`, ty will synthesize `__init__` parameters and instance
+    /// attribute types for classes that inherit from `django.db.models.Model`.
+    ///
+    /// Defaults to `false`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[option(
+        default = r#"false"#,
+        value_type = "bool",
+        example = r#"
+        # Enable Django ORM type synthesis
+        django = true
+        "#
+    )]
+    pub django: Option<bool>,
 }
 
 impl AnalysisOptions {
@@ -1394,12 +1411,14 @@ impl AnalysisOptions {
             respect_type_ignore_comments,
             allowed_unresolved_imports,
             replace_imports_with_any,
+            django,
         } = self;
 
         let AnalysisSettings {
             respect_type_ignore_comments: respect_type_ignore_default,
             allowed_unresolved_imports: allowed_unresolved_imports_default,
             replace_imports_with_any: replace_imports_with_any_default,
+            django: django_default,
         } = AnalysisSettings::default();
 
         let allowed_unresolved_imports =
@@ -1429,6 +1448,7 @@ impl AnalysisOptions {
                 .unwrap_or(respect_type_ignore_default),
             allowed_unresolved_imports,
             replace_imports_with_any,
+            django: django.unwrap_or(django_default),
         }
     }
 }

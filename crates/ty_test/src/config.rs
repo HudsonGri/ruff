@@ -122,6 +122,8 @@ pub(crate) struct Analysis {
     pub(crate) allowed_unresolved_imports: Option<Vec<String>>,
 
     pub(crate) replace_imports_with_any: Option<Vec<String>>,
+
+    pub(crate) django: Option<bool>,
 }
 
 #[derive(Deserialize, Debug, Clone)]

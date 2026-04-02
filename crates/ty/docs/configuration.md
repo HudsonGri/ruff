@@ -81,6 +81,39 @@ any module where the first component contains the substring `test`, use `*test*.
 
 ---
 
+### `django`
+
+Enable Django model type synthesis.
+
+When set to `true`, ty will synthesize `__init__` parameters and instance
+attribute types for classes that inherit from `django.db.models.Model`.
+
+Defaults to `false`.
+
+**Default value**: `false`
+
+**Type**: `bool`
+
+**Example usage**:
+
+=== "pyproject.toml"
+
+    ```toml
+    [tool.ty.analysis]
+    # Enable Django ORM type synthesis
+    django = true
+    ```
+
+=== "ty.toml"
+
+    ```toml
+    [analysis]
+    # Enable Django ORM type synthesis
+    django = true
+    ```
+
+---
+
 ### `replace-imports-with-any`
 
 A list of module glob patterns whose imports should be replaced with `typing.Any`.
@@ -567,6 +600,39 @@ any module where the first component contains the substring `test`, use `*test*.
     [overrides.analysis]
     # Suppress errors for all `test` modules except `test.foo`
     allowed-unresolved-imports = ["test.**", "!test.foo"]
+    ```
+
+---
+
+#### `django`
+
+Enable Django model type synthesis.
+
+When set to `true`, ty will synthesize `__init__` parameters and instance
+attribute types for classes that inherit from `django.db.models.Model`.
+
+Defaults to `false`.
+
+**Default value**: `false`
+
+**Type**: `bool`
+
+**Example usage**:
+
+=== "pyproject.toml"
+
+    ```toml
+    [tool.ty.overrides.analysis]
+    # Enable Django ORM type synthesis
+    django = true
+    ```
+
+=== "ty.toml"
+
+    ```toml
+    [overrides.analysis]
+    # Enable Django ORM type synthesis
+    django = true
     ```
 
 ---

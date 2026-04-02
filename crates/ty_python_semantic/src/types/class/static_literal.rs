@@ -124,6 +124,17 @@ impl<'db> StaticClassLiteral<'db> {
         })
     }
 
+    /// Returns `true` if this class is (or inherits from) `django.db.models.Model`.
+    /// This is the gate for all Django ORM attribute synthesis.
+    pub(crate) fn is_django_model(self, db: &'db dyn Db) -> bool {
+        self.iter_mro(db, None).any(|base| {
+            base.into_class()
+                .and_then(|c| c.static_class_literal(db))
+                .map(|(lit, _)| lit.is_known(db, KnownClass::DjangoModel))
+                .unwrap_or(false)
+        })
+    }
+
     /// Returns `true` if this class is a dataclass-like class.
     ///
     /// This covers `@dataclass`-decorated classes, as well as classes created via
@@ -1136,6 +1147,18 @@ impl<'db> StaticClassLiteral<'db> {
             }
         }
 
+        // Short-circuit for Django model fields. Without this, unannotated assignments
+        // like `title = CharField(...)` get widened to `Unknown | CharField[str, str]`
+        // by `place_by_id`, and the descriptor `__get__` doesn't encode `null=True`.
+        // Returning the synthesized type as a declared member avoids both problems.
+        if db.analysis_settings(self.file(db)).django {
+            if let Some(synthesized_ty) =
+                super::django_model::synthesize_django_instance_member(db, self, name)
+            {
+                return Member::definitely_declared(synthesized_ty);
+            }
+        }
+
         member
     }
 
@@ -1194,6 +1217,14 @@ impl<'db> StaticClassLiteral<'db> {
             });
 
             return Some(synthesized_callables.into_type(db));
+        }
+
+        // Try Django model synthesis first (before dataclass/namedtuple dispatch).
+        // This runs even when CodeGeneratorKind::from_class returns None.
+        if db.analysis_settings(self.file(db)).django {
+            if let Some(ty) = super::django_model::synthesize_django_model_member(db, self, name) {
+                return Some(ty);
+            }
         }
 
         let field_policy = CodeGeneratorKind::from_class(db, self.into(), specialization)?;
@@ -2265,6 +2296,15 @@ impl<'db> StaticClassLiteral<'db> {
         // TODO: There are many things that are not yet implemented here:
         // - `typing.Final`
         // - Proper diagnostics
+
+        // Django fields are unannotated class-body assignments, so without synthesis
+        // they'd get widened to `Unknown | FieldType`.
+        if db.analysis_settings(self.file(db)).django {
+            if let Some(ty) = super::django_model::synthesize_django_instance_member(db, self, name)
+            {
+                return Member::definitely_declared(ty);
+            }
+        }
 
         let body_scope = self.body_scope(db);
         let table = place_table(db, body_scope);
