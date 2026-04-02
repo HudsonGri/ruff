@@ -3417,6 +3417,66 @@ match 2:
     );
 }
 
+#[test]
+fn multiline_fstring_expression_before_py312() {
+    // ok on 3.12
+    assert_cmd_snapshot!(Command::new(get_cargo_bin(BIN_NAME))
+        .args(STDIN_BASE_OPTIONS)
+        .args(["--stdin-filename", "test.py"])
+        .arg("--target-version=py312")
+        .arg("-")
+        .pass_stdin(
+            r#"
+def contains_syntax_error():
+    out = ";".join(
+        f"{name}={
+            ','.join(['1', '2'])
+        }"
+        for name, p in {"name": "p"}
+    )
+    print(out)
+"#
+        ),
+        @"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    All checks passed!
+
+    ----- stderr -----
+    "
+    );
+
+    // not ok before 3.12
+    assert_cmd_snapshot!(Command::new(get_cargo_bin(BIN_NAME))
+        .args(STDIN_BASE_OPTIONS)
+        .args(["--stdin-filename", "test.py"])
+        .arg("--target-version=py310")
+        .arg("-")
+        .pass_stdin(
+            r#"
+def contains_syntax_error():
+    out = ";".join(
+        f"{name}={
+            ','.join(['1', '2'])
+        }"
+        for name, p in {"name": "p"}
+    )
+    print(out)
+"#
+        ),
+        @"
+    success: false
+    exit_code: 1
+    ----- stdout -----
+    test.py:4:9: invalid-syntax: Cannot use line breaks in non-triple-quoted f-string replacement fields on Python 3.10 (syntax was added in Python 3.12)
+    Found 1 error.
+
+    ----- stderr -----
+    "
+    );
+}
+
 /// Regression test for <https://github.com/astral-sh/ruff/issues/16417>
 #[test]
 fn cache_syntax_errors() -> Result<()> {

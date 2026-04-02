@@ -1852,6 +1852,9 @@ impl<'src> Parser<'src> {
         // }'''
         // f"{f"{f"{f"{f"{f"{1+1}"}"}"}"}"}"  # arbitrary nesting
         // f"{f'''{"nested"} inner'''} outer" # nested (triple) quotes
+        // f"{
+        //     1
+        // }"
         // f"test {a \
         //     } more"                        # line continuation
 
@@ -1873,6 +1876,9 @@ impl<'src> Parser<'src> {
         // f'outer {x:{"# not a comment"} }'
         // f"""{f'''{f'{"# not a comment"}'}'''}"""
         // f"""{f'''# before expression {f'# aro{f"#{1+1}#"}und #'}'''} # after expression"""
+        // f"""{
+        //     1
+        // }"""
         // f"escape outside of \t {expr}\n"
         // f"test\"abcd"
         // f"{1:\x64}"  # escapes are valid in the format spec
@@ -1887,6 +1893,9 @@ impl<'src> Parser<'src> {
         // }'''
         // f"{f"{f"{f"{f"{f"{1+1}"}"}"}"}"}"  # arbitrary nesting
         // f"{f'''{"nested"} inner'''} outer" # nested (triple) quotes
+        // f"{
+        //     1
+        // }"
         // f"test {a \
         //     } more"                        # line continuation
         // f"""{f"""{x}"""}"""                # mark the whole triple quote
@@ -1917,6 +1926,24 @@ impl<'src> Parser<'src> {
                 .as_ref()
                 .map(|format_spec| TextRange::new(range.start(), format_spec.start()))
                 .unwrap_or(range);
+
+            let has_line_break =
+                memchr::memchr2(b'\n', b'\r', self.source[range].as_bytes()).is_some();
+            let has_backslash = memchr::memchr(b'\\', self.source[range].as_bytes()).is_some();
+            let has_comment = self
+                .tokens
+                .in_range(range)
+                .iter()
+                .any(|token| token.kind().is_comment());
+
+            // Before Python 3.12, replacement fields could only span physical lines when the
+            // outer f-string was triple-quoted.
+            if !flags.is_triple_quoted() && has_line_break && !has_backslash && !has_comment {
+                self.add_unsupported_syntax_error(
+                    UnsupportedSyntaxErrorKind::Pep701FString(FStringKind::LineBreak),
+                    TextRange::at(range.start(), '{'.text_len()),
+                );
+            }
 
             let quote_bytes = flags.quote_str().as_bytes();
             let quote_len = flags.quote_len();

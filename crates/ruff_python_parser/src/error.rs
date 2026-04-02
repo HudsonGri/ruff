@@ -501,6 +501,7 @@ pub enum StarTupleKind {
 pub enum FStringKind {
     Backslash,
     Comment,
+    LineBreak,
     NestedQuote,
 }
 
@@ -990,6 +991,9 @@ impl Display for UnsupportedSyntaxError {
             }
             UnsupportedSyntaxErrorKind::Pep701FString(FStringKind::Comment) => {
                 "Cannot use comments in f-strings"
+            }
+            UnsupportedSyntaxErrorKind::Pep701FString(FStringKind::LineBreak) => {
+                "Cannot use line breaks in non-triple-quoted f-string replacement fields"
             }
             UnsupportedSyntaxErrorKind::Pep701FString(FStringKind::NestedQuote) => {
                 "Cannot reuse outer quote character in f-strings"
