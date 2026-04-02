@@ -3469,7 +3469,7 @@ def contains_syntax_error():
     success: false
     exit_code: 1
     ----- stdout -----
-    test.py:4:9: invalid-syntax: Cannot use line breaks in non-triple-quoted f-string replacement fields on Python 3.10 (syntax was added in Python 3.12)
+    test.py:4:18: invalid-syntax: Cannot use line breaks in non-triple-quoted f-string replacement fields on Python 3.10 (syntax was added in Python 3.12)
     Found 1 error.
 
     ----- stderr -----
