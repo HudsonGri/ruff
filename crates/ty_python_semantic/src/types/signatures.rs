@@ -109,7 +109,7 @@ impl<'db> CallableSignature<'db> {
         }))
     }
 
-    pub(crate) fn variance_of_type_alias_paramspec(
+    pub(crate) fn variance_of_paramspec(
         &self,
         db: &'db dyn Db,
         typevar: BoundTypeVarInstance<'db>,

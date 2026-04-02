@@ -833,23 +833,27 @@ impl<'db> BoundTypeVarInstance<'db> {
         let _span = tracing::trace_span!("variance_with_polarity").entered();
         match self.typevar(db).explicit_variance(db) {
             Some(explicit_variance) => explicit_variance.compose(polarity),
-            None => match self.binding_context(db) {
-                BindingContext::Definition(definition) => {
-                    binding_type(db, definition).as_type_alias().map_or_else(
-                        || {
-                            binding_type(db, definition)
-                                .with_polarity(polarity)
-                                .variance_of(db, self)
-                        },
-                        |type_alias| {
-                            KnownInstanceType::TypeAliasType(type_alias)
-                                .variance_of(db, self)
-                                .compose(polarity)
-                        },
-                    )
+            None => {
+                let inferred_variance = match self.binding_context(db) {
+                    BindingContext::Definition(definition) => {
+                        binding_type(db, definition).as_type_alias().map_or_else(
+                            || binding_type(db, definition).variance_of(db, self),
+                            |type_alias| {
+                                KnownInstanceType::TypeAliasType(type_alias).variance_of(db, self)
+                            },
+                        )
+                    }
+                    BindingContext::Synthetic => TypeVarVariance::Invariant,
+                };
+
+                match inferred_variance {
+                    // Bivariance is an internal inference state. Externally, we continue to
+                    // model it as covariance.
+                    TypeVarVariance::Bivariant => TypeVarVariance::Covariant,
+                    variance => variance,
                 }
-                BindingContext::Synthetic => TypeVarVariance::Invariant,
-            },
+                .compose(polarity)
+            }
         }
     }
 

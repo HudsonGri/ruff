@@ -42,7 +42,7 @@ use crate::place::{
     DefinedPlace, Definedness, Place, PlaceAndQualifiers, TypeOrigin, builtins_module_scope,
     imported_symbol, known_module_symbol,
 };
-use crate::semantic_index::definition::{Definition, DefinitionKind};
+use crate::semantic_index::definition::Definition;
 use crate::semantic_index::place::ScopedPlaceId;
 use crate::semantic_index::scope::ScopeId;
 use crate::semantic_index::{imported_modules, place_table, semantic_index};
@@ -6295,15 +6295,8 @@ impl<'db> VarianceInferable<'db> for Type<'db> {
             Type::GenericAlias(generic_alias) => generic_alias.variance_of(db, typevar),
             Type::Callable(callable_type) => {
                 let signatures = callable_type.signatures(db);
-                if typevar.is_paramspec(db)
-                    && typevar.paramspec_attr(db).is_none()
-                    && matches!(
-                        typevar.binding_context(db),
-                        BindingContext::Definition(definition)
-                            if matches!(definition.kind(db), DefinitionKind::TypeAlias(_))
-                    )
-                {
-                    signatures.variance_of_type_alias_paramspec(db, typevar)
+                if typevar.is_paramspec(db) && typevar.paramspec_attr(db).is_none() {
+                    signatures.variance_of_paramspec(db, typevar)
                 } else {
                     signatures.variance_of(db, typevar)
                 }

@@ -401,16 +401,145 @@ type RecursiveAlias2[T] = None | list[T] | list[RecursiveAlias2[T]]
     assert_effective_variance(&db, covariant, TypeVarVariance::Covariant);
     assert_effective_variance(&db, contravariant, TypeVarVariance::Contravariant);
     assert_effective_variance(&db, invariant, TypeVarVariance::Invariant);
-    assert_effective_variance(&db, bivariant, TypeVarVariance::Bivariant);
+    assert_effective_variance(&db, bivariant, TypeVarVariance::Covariant);
     assert_effective_variance(&db, paramspec, TypeVarVariance::Contravariant);
-    assert_effective_variance(&db, recursive, TypeVarVariance::Bivariant);
+    assert_effective_variance(&db, recursive, TypeVarVariance::Covariant);
     assert_effective_variance(&db, recursive2, TypeVarVariance::Invariant);
 
     assert_eq!(
         get_bound_typevar(&db, bivariant)
             .variance_with_polarity(&db, TypeVarVariance::Contravariant),
-        TypeVarVariance::Bivariant
+        TypeVarVariance::Contravariant
     );
+}
+
+#[test]
+fn mutually_recursive_class_variance_is_order_independent() {
+    use crate::db::tests::TestDb;
+
+    fn get_class<'db>(db: &'db TestDb, name: &str) -> StaticClassLiteral<'db> {
+        let module = ruff_db::files::system_path_to_file(db, "/src/a.py").unwrap();
+        let ty = global_symbol(db, module, name).place.expect_type();
+        let Type::ClassLiteral(ClassLiteral::Static(class)) = ty else {
+            panic!("Expected `{name}` to be a static class literal");
+        };
+        class
+    }
+
+    fn get_bound_typevar<'db>(
+        db: &'db TestDb,
+        class: StaticClassLiteral<'db>,
+    ) -> BoundTypeVarInstance<'db> {
+        class
+            .generic_context(db)
+            .unwrap()
+            .variables(db)
+            .next()
+            .unwrap()
+    }
+
+    fn class_variances_in_order(names: [&str; 2]) -> [(TypeVarVariance, TypeVarVariance); 2] {
+        let mut db = setup_db();
+        db.write_dedented(
+            "/src/a.py",
+            r#"
+class A[T]:
+    def m(self, b: B[T]) -> None:
+        pass
+
+class B[U]:
+    def m(self, a: A[U]) -> None:
+        pass
+"#,
+        )
+        .unwrap();
+
+        names.map(|name| {
+            let class = get_class(&db, name);
+            let typevar = get_bound_typevar(&db, class);
+            (class.variance_of(&db, typevar), typevar.variance(&db))
+        })
+    }
+
+    let queried_a_then_b = class_variances_in_order(["A", "B"]);
+    let queried_b_then_a = class_variances_in_order(["B", "A"]);
+
+    assert_eq!(
+        queried_a_then_b,
+        [
+            (TypeVarVariance::Bivariant, TypeVarVariance::Covariant),
+            (TypeVarVariance::Bivariant, TypeVarVariance::Covariant),
+        ]
+    );
+    assert_eq!(
+        queried_b_then_a,
+        [
+            (TypeVarVariance::Bivariant, TypeVarVariance::Covariant),
+            (TypeVarVariance::Bivariant, TypeVarVariance::Covariant),
+        ]
+    );
+}
+
+#[test]
+fn gradual_paramspec_self_widening_is_assignable() {
+    use crate::db::tests::TestDb;
+
+    fn get_class<'db>(db: &'db TestDb, name: &str) -> StaticClassLiteral<'db> {
+        let module = ruff_db::files::system_path_to_file(db, "/src/a.py").unwrap();
+        let ty = global_symbol(db, module, name).place.expect_type();
+        let Type::ClassLiteral(ClassLiteral::Static(class)) = ty else {
+            panic!("Expected `{name}` to be a static class literal");
+        };
+        class
+    }
+
+    let mut db = setup_db();
+    db.write_dedented(
+        "/src/a.py",
+        r#"
+from typing import Callable
+
+class Command[**P, T]:
+    _callback: Callable[P, T]
+
+    @property
+    def callback(self) -> Callable[P, T]:
+        return self._callback
+"#,
+    )
+    .unwrap();
+
+    let command = get_class(&db, "Command");
+    let mut variables = command.generic_context(&db).unwrap().variables(&db);
+    let paramspec = variables.next().unwrap();
+    let typevar = variables.next().unwrap();
+
+    assert_eq!(
+        command.variance_of(&db, paramspec),
+        TypeVarVariance::Contravariant
+    );
+    assert_eq!(paramspec.variance(&db), TypeVarVariance::Contravariant);
+    assert_eq!(
+        command.variance_of(&db, typevar),
+        TypeVarVariance::Covariant
+    );
+    assert_eq!(typevar.variance(&db), TypeVarVariance::Covariant);
+
+    let source = Type::instance(&db, command.identity_specialization(&db));
+    let target = Type::instance(
+        &db,
+        command.apply_specialization(&db, |generic_context| {
+            generic_context.specialize(
+                &db,
+                &[
+                    Type::paramspec_value_callable(&db, Parameters::gradual_form()),
+                    Type::object(),
+                ],
+            )
+        }),
+    );
+
+    assert!(source.is_assignable_to(&db, target));
 }
 
 #[test]

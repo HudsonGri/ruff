@@ -2,14 +2,11 @@ use itertools::Either;
 
 use crate::{
     Db, DisplaySettings,
-    semantic_index::{
-        definition::{Definition, DefinitionKind},
-        scope::ScopeId,
-    },
+    semantic_index::{definition::Definition, scope::ScopeId},
     types::{
-        ApplyTypeMappingVisitor, BindingContext, BoundTypeVarInstance, CallableType, ClassType,
-        GenericContext, InferenceFlags, InvalidTypeExpressionError, KnownClass, StringLiteralType,
-        Type, TypeAliasType, TypeContext, TypeMapping, TypeVarVariance, UnionBuilder,
+        ApplyTypeMappingVisitor, BoundTypeVarInstance, CallableType, ClassType, GenericContext,
+        InferenceFlags, InvalidTypeExpressionError, KnownClass, StringLiteralType, Type,
+        TypeAliasType, TypeContext, TypeMapping, TypeVarVariance, UnionBuilder,
         class::NamedTupleSpec,
         constraints::OwnedConstraintSet,
         generics::{Specialization, walk_generic_context},
@@ -172,17 +169,9 @@ impl<'db> VarianceInferable<'db> for KnownInstanceType<'db> {
                 type_alias.raw_value_type(db).variance_of(db, typevar)
             }
             KnownInstanceType::Callable(callable)
-                if typevar.is_paramspec(db)
-                    && typevar.paramspec_attr(db).is_none()
-                    && matches!(
-                        typevar.binding_context(db),
-                        BindingContext::Definition(definition)
-                            if matches!(definition.kind(db), DefinitionKind::TypeAlias(_))
-                    ) =>
+                if typevar.is_paramspec(db) && typevar.paramspec_attr(db).is_none() =>
             {
-                callable
-                    .signatures(db)
-                    .variance_of_type_alias_paramspec(db, typevar)
+                callable.signatures(db).variance_of_paramspec(db, typevar)
             }
             _ => TypeVarVariance::Bivariant,
         }
